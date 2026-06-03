@@ -1,0 +1,36 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "triggers": {
+      "Recurrence": {
+        "type": "Recurrence",
+        "recurrence": {
+          "frequency": "Day",
+          "interval": 1,
+          "schedule": {
+            "hours": ["21"],
+            "minutes": [30]
+          },
+          "timeZone": "Eastern Standard Time"
+        }
+      }
+    },
+    "actions": {
+      "Start_VM": {
+        "type": "Http",
+        "inputs": {
+          "method": "POST",
+          "uri": "https://management.azure.com/subscriptions/@{appsetting('AZURE_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('VM_RESOURCE_GROUP')}/providers/Microsoft.Compute/virtualMachines/@{appsetting('VM_NAME')}/start?api-version=2023-03-01",
+          "authentication": {
+            "type": "ManagedServiceIdentity",
+            "identity": "@{appsetting('UAMI_RESOURCE_ID')}"
+          }
+        },
+        "runAfter": {}
+      }
+    },
+    "outputs": {}
+  },
+  "kind": "Stateful"
+}
