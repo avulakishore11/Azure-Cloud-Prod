@@ -1,0 +1,77 @@
+name: Deploy Logic App Content
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
+
+      - name: Get Storage Key
+        id: storagekey
+        run: |
+          KEY=$(az storage account keys list \
+            --resource-group rg-winvm-dev-01 \
+            --account-name stlaeus2dev01 \
+            --query "[0].value" -o tsv)
+          echo "::add-mask::$KEY"
+          echo "key=$KEY" >> $GITHUB_OUTPUT
+
+      - name: Create File Share
+        run: |
+          az storage share create \
+            --name logic-app-content \
+            --account-name stlaeus2dev01 \
+            --account-key "${{ steps.storagekey.outputs.key }}" \
+            --output none 2>/dev/null || true
+
+      - name: Create Directories
+        run: |
+          az storage directory create --share-name logic-app-content --name site --account-name stlaeus2dev01 --account-key "${{ steps.storagekey.outputs.key }}" --output none 2>/dev/null || true
+          az storage directory create --share-name logic-app-content --name site/wwwroot --account-name stlaeus2dev01 --account-key "${{ steps.storagekey.outputs.key }}" --output none 2>/dev/null || true
+          az storage directory create --share-name logic-app-content --name site/wwwroot/vm-start-stop --account-name stlaeus2dev01 --account-key "${{ steps.storagekey.outputs.key }}" --output none 2>/dev/null || true
+
+      - name: Upload host.json
+        run: |
+          az storage file upload \
+            --share-name logic-app-content \
+            --source logic-app/host.json \
+            --path site/wwwroot/host.json \
+            --account-name stlaeus2dev01 \
+            --account-key "${{ steps.storagekey.outputs.key }}" \
+            --output none
+
+      - name: Upload connections.json
+        run: |
+          az storage file upload \
+            --share-name logic-app-content \
+            --source logic-app/connections.json \
+            --path site/wwwroot/connections.json \
+            --account-name stlaeus2dev01 \
+            --account-key "${{ steps.storagekey.outputs.key }}" \
+            --output none
+
+      - name: Upload workflow.json
+        run: |
+          az storage file upload \
+            --share-name logic-app-content \
+            --source logic-app/vm-start-stop/workflow.json \
+            --path site/wwwroot/vm-start-stop/workflow.json \
+            --account-name stlaeus2dev01 \
+            --account-key "${{ steps.storagekey.outputs.key }}" \
+            --output none
+
+      - name: Restart Logic App
+        run: |
+          az webapp restart \
+            --name laeus2-winvm-dev-01 \
+            --resource-group rg-winvm-dev-01
+          echo "Logic App restarted. Wait ~60 seconds then check the portal."
