@@ -1,0 +1,24 @@
+name: Azure Query
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'Azure CLI command to run (e.g. az vm list -o table)'
+        required: true
+        default: 'az account show'
+
+jobs:
+  azure-query:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
+
+      - name: Set Subscription
+        run: az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Run Azure Command
+        run: ${{ github.event.inputs.command }}
