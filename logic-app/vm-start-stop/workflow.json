@@ -1,0 +1,111 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "triggers": {
+      "manual": {
+        "type": "Request",
+        "kind": "Http",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "description": "start or stop"
+              }
+            },
+            "required": ["action"]
+          }
+        }
+      }
+    },
+    "actions": {
+      "Parse_Action": {
+        "type": "InitializeVariable",
+        "inputs": {
+          "variables": [
+            {
+              "name": "action",
+              "type": "string",
+              "value": "@{triggerBody()?['action']}"
+            }
+          ]
+        },
+        "runAfter": {}
+      },
+      "Condition_Start_or_Stop": {
+        "type": "If",
+        "expression": {
+          "and": [
+            {
+              "equals": [
+                "@variables('action')",
+                "start"
+              ]
+            }
+          ]
+        },
+        "actions": {
+          "Start_VM": {
+            "type": "Http",
+            "inputs": {
+              "method": "POST",
+              "uri": "https://management.azure.com/subscriptions/@{appsetting('AZURE_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('VM_RESOURCE_GROUP')}/providers/Microsoft.Compute/virtualMachines/@{appsetting('VM_NAME')}/start?api-version=2023-03-01",
+              "authentication": {
+                "type": "ManagedServiceIdentity",
+                "identity": "@{appsetting('UAMI_RESOURCE_ID')}"
+              }
+            }
+          },
+          "Response_Started": {
+            "type": "Response",
+            "inputs": {
+              "statusCode": 200,
+              "body": {
+                "status": "VM start initiated",
+                "vm": "@{appsetting('VM_NAME')}"
+              }
+            },
+            "runAfter": {
+              "Start_VM": ["Succeeded"]
+            }
+          }
+        },
+        "else": {
+          "actions": {
+            "Stop_VM": {
+              "type": "Http",
+              "inputs": {
+                "method": "POST",
+                "uri": "https://management.azure.com/subscriptions/@{appsetting('AZURE_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('VM_RESOURCE_GROUP')}/providers/Microsoft.Compute/virtualMachines/@{appsetting('VM_NAME')}/deallocate?api-version=2023-03-01",
+                "authentication": {
+                  "type": "ManagedServiceIdentity",
+                  "identity": "@{appsetting('UAMI_RESOURCE_ID')}"
+                }
+              }
+            },
+            "Response_Stopped": {
+              "type": "Response",
+              "inputs": {
+                "statusCode": 200,
+                "body": {
+                  "status": "VM stop/deallocate initiated",
+                  "vm": "@{appsetting('VM_NAME')}"
+                }
+              },
+              "runAfter": {
+                "Stop_VM": ["Succeeded"]
+              }
+            }
+          }
+        },
+        "runAfter": {
+          "Parse_Action": ["Succeeded"]
+        }
+      }
+    },
+    "outputs": {}
+  },
+  "kind": "Stateful"
+}
